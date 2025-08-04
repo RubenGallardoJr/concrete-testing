@@ -1,25 +1,36 @@
 import React, { useState, useEffect } from 'react';
 
+const webhookUrl = 'https://hook.us2.make.com/l8daf5wo9l8kul56ux6ljxqn1ek93vl6';
+
 const ConcreteTestingForm = () => {
+  const today = new Date().toISOString().slice(0, 10);
+
   const [formData, setFormData] = useState({
     client: '',
-    project: '',
-    castDate: '',
-    location: '',
     reportNo: '',
+    project: '',
     technician: '',
-    setOf: '1'
+    castDate: today,
+    location: '',
+    setOf: 1,
   });
 
-  const [tables, setTables] = useState([]);
-  const [webhookUrl, setWebhookUrl] = useState('https://hook.us1.make.com/your-make-webhook-url'); // <-- Replace with your webhook
-  const [isLoading, setIsLoading] = useState(false);
+  const [sets, setSets] = useState([]);
 
   useEffect(() => {
-    const numberOfTables = parseInt(formData.setOf) || 1;
-    const newTables = Array.from({ length: numberOfTables }, (_, index) => ({
-      id: index,
-      tableData: [{ ageDays: '', areaSqIn: '' }],
+    const numberOfSets = parseInt(formData.setOf) || 1;
+    const newSets = Array.from({ length: numberOfSets }, (_, setIndex) => ({
+      id: setIndex,
+      samples: [
+        {
+          age: '',
+          load: '',
+          area: '',
+          strength: '',
+          percentDesign: '',
+          fractureType: ''
+        }
+      ],
       additionalInfo: {
         supplier: '',
         truck: '',
@@ -35,131 +46,201 @@ const ConcreteTestingForm = () => {
         unitWeight: '',
         fieldCured: '',
         sampleType: '',
-        sampleSize: ''
+        sampleSize: '',
+        arrivalTime: '',
+        departureTime: '',
+        remarks: '',
+        personNotified: ''
       }
     }));
-    setTables(newTables);
+    setSets(newSets);
   }, [formData.setOf]);
 
-  const generateSampleNumber = (client, project, tableIndex, rowIndex) => {
-    const clientInitial = (client?.charAt(0) || 'C').toLowerCase();
-    const projectInitial = (project?.charAt(0) || 'P').toLowerCase();
-    const sampleNum = (tableIndex * 10) + rowIndex + 1;
-    return `${clientInitial}${projectInitial}-${sampleNum}`;
+  const handleFormChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const calculateDate = (castDate, ageDays) => {
+  const handleSampleChange = (setIndex, sampleIndex, field, value) => {
+    const updated = [...sets];
+    updated[setIndex].samples[sampleIndex][field] = value;
+    setSets(updated);
+  };
+
+  const handleAdditionalInfoChange = (setIndex, field, value) => {
+    const updated = [...sets];
+    updated[setIndex].additionalInfo[field] = value;
+    setSets(updated);
+  };
+
+  const addSampleRow = (setIndex) => {
+    const updated = [...sets];
+    updated[setIndex].samples.push({
+      age: '',
+      load: '',
+      area: '',
+      strength: '',
+      percentDesign: '',
+      fractureType: ''
+    });
+    setSets(updated);
+  };
+
+  const generateSampleId = (client, project, setNum, sampleNum) => {
+    const c = (client?.charAt(0) || 'C').toUpperCase();
+    const p = (project?.charAt(0) || 'P').toUpperCase();
+    return `${c}${p}-${setNum + 1}-${sampleNum + 1}`;
+  };
+
+  const calculateBreakDate = (castDate, ageDays) => {
     if (!castDate || !ageDays) return '';
     try {
-      const [year, month, day] = castDate.split('-').map(Number);
-      const cast = new Date(year, month - 1, day);
-      cast.setDate(cast.getDate() + parseInt(ageDays));
-      return `${cast.getMonth() + 1}/${cast.getDate()}/${cast.getFullYear().toString().slice(-2)}`;
+      const baseDate = new Date(castDate);
+      baseDate.setDate(baseDate.getDate() + parseInt(ageDays));
+      return baseDate.toLocaleDateString('en-US');
     } catch {
       return '';
     }
   };
 
-  const generateDocumentContent = () => {
-    let content = `Project: ${formData.project}\nClient: ${formData.client}\n`;
-    if (formData.castDate) content += `Cast Date: ${formData.castDate}\n`;
-    if (formData.location) content += `Location: ${formData.location}\n`;
-    if (formData.reportNo) content += `Report No: ${formData.reportNo}\n`;
-    if (formData.technician) content += `Technician: ${formData.technician}\n`;
-    content += `Set Of: ${formData.setOf}\n\n`;
-
-    tables.forEach((table, tableIndex) => {
-      content += `Test Data Set ${tableIndex + 1}:\nSample Number\tDate\tAge (Days)\tArea (Sq.In)\n`;
-      table.tableData.forEach((row, rowIndex) => {
-        const sampleNumber = generateSampleNumber(formData.client, formData.project, tableIndex, rowIndex);
-        const testDate = calculateDate(formData.castDate, row.ageDays);
-        content += `${sampleNumber}\t${testDate}\t${row.ageDays}\t${row.areaSqIn}\n`;
-      });
-
-      content += `\nAdditional Information:\n`;
-      for (const [key, value] of Object.entries(table.additionalInfo)) {
-        if (value) content += `${key}: ${value}\n`;
-      }
-      content += '\n';
-    });
-
-    return content;
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
-    const documentContent = generateDocumentContent();
+    const title = `${formData.client} - ${formData.project} - ${formData.reportNo}`;
+    const payload = {
+      ...formData,
+      sets,
+      reportTitle: title,
+      submittedAt: new Date().toISOString()
+    };
 
     try {
       await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        mode: 'no-cors',
-        body: JSON.stringify({
-          ...formData,
-          documentTitle: `${formData.client} - ${formData.project} - Concrete Testing Report`,
-          documentContent,
-          tables,
-          timestamp: new Date().toISOString()
-        })
+        body: JSON.stringify(payload)
       });
       alert('Form submitted!');
-    } catch (error) {
-      alert('Submission failed. Check console.');
-      console.error(error);
-    } finally {
-      setIsLoading(false);
+    } catch (err) {
+      console.error(err);
+      alert('Submission failed.');
     }
   };
 
   return (
-    <div style={{ padding: '2rem', fontFamily: 'Arial' }}>
-      <h1>Concrete Testing Form</h1>
-      <form onSubmit={handleSubmit}>
-        <label>Client:<br />
-          <input value={formData.client} onChange={(e) => setFormData({ ...formData, client: e.target.value })} required />
-        </label><br /><br />
-        <label>Project:<br />
-          <input value={formData.project} onChange={(e) => setFormData({ ...formData, project: e.target.value })} required />
-        </label><br /><br />
-        <label>Cast Date:<br />
-          <input type="date" value={formData.castDate} onChange={(e) => setFormData({ ...formData, castDate: e.target.value })} required />
-        </label><br /><br />
-        <label>Set Of (1-5):<br />
-          <select value={formData.setOf} onChange={(e) => setFormData({ ...formData, setOf: e.target.value })}>
-            {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </label><br /><br />
+    <div className="max-w-4xl mx-auto p-6 text-sm sm:text-base font-sans">
+      <h1 className="text-2xl font-bold mb-4 text-slate-700">Concrete Testing Form</h1>
 
-        {tables.map((table, tableIndex) => (
-          <div key={tableIndex}>
-            <h3>Test Set {tableIndex + 1}</h3>
-            {table.tableData.map((row, rowIndex) => (
-              <div key={rowIndex}>
-                <label>Age (Days): <input type="number" value={row.ageDays} onChange={(e) => {
-                  const updated = [...tables];
-                  updated[tableIndex].tableData[rowIndex].ageDays = e.target.value;
-                  setTables(updated);
-                }} /></label>
-                <label> Area (Sq.In): <input type="number" step="0.1" value={row.areaSqIn} onChange={(e) => {
-                  const updated = [...tables];
-                  updated[tableIndex].tableData[rowIndex].areaSqIn = e.target.value;
-                  setTables(updated);
-                }} /></label>
-              </div>
-            ))}
-            <br />
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {['client', 'reportNo', 'project', 'technician', 'location'].map((field) => (
+            <div key={field}>
+              <label className="block font-medium text-gray-700 capitalize">{field.replace(/([A-Z])/g, ' $1')}:</label>
+              <input
+                required
+                type="text"
+                value={formData[field]}
+                onChange={(e) => handleFormChange(field, e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded"
+              />
+            </div>
+          ))}
+          <div>
+            <label className="block font-medium text-gray-700">Cast Date:</label>
+            <input
+              required
+              type="date"
+              value={formData.castDate}
+              onChange={(e) => handleFormChange('castDate', e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded"
+            />
+          </div>
+          <div>
+            <label className="block font-medium text-gray-700">Number of Sets:</label>
+            <select
+              value={formData.setOf}
+              onChange={(e) => handleFormChange('setOf', e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded"
+            >
+              {[1, 2, 3, 4, 5].map(n => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {sets.map((set, setIndex) => (
+          <div key={setIndex} className="bg-gray-50 border border-gray-200 p-4 rounded-lg space-y-4">
+            <h2 className="text-lg font-semibold text-slate-700">Test Set {setIndex + 1}</h2>
+
+            <table className="w-full table-auto border-collapse text-sm">
+              <thead className="bg-slate-100 border">
+                <tr>
+                  <th className="border px-2 py-1">Sample ID</th>
+                  <th className="border px-2 py-1">Break Date</th>
+                  <th className="border px-2 py-1">Age (days)</th>
+                  <th className="border px-2 py-1">Load (lbs)</th>
+                  <th className="border px-2 py-1">Area (sq.in.)</th>
+                  <th className="border px-2 py-1">Strength (psi)</th>
+                  <th className="border px-2 py-1">% Design</th>
+                  <th className="border px-2 py-1">Fracture Type</th>
+                </tr>
+              </thead>
+              <tbody>
+                {set.samples.map((sample, sampleIndex) => {
+                  const id = generateSampleId(formData.client, formData.project, setIndex, sampleIndex);
+                  const breakDate = calculateBreakDate(formData.castDate, sample.age);
+                  return (
+                    <tr key={sampleIndex}>
+                      <td className="border px-2 py-1">{id}</td>
+                      <td className="border px-2 py-1">{breakDate}</td>
+                      <td className="border px-2 py-1">
+                        <input type="number" value={sample.age} onChange={(e) => handleSampleChange(setIndex, sampleIndex, 'age', e.target.value)} className="w-full p-1 border" />
+                      </td>
+                      <td className="border px-2 py-1">
+                        <input type="number" value={sample.load} onChange={(e) => handleSampleChange(setIndex, sampleIndex, 'load', e.target.value)} className="w-full p-1 border" />
+                      </td>
+                      <td className="border px-2 py-1">
+                        <input type="number" step="0.01" value={sample.area} onChange={(e) => handleSampleChange(setIndex, sampleIndex, 'area', e.target.value)} className="w-full p-1 border" />
+                      </td>
+                      <td className="border px-2 py-1">
+                        <input type="number" value={sample.strength} onChange={(e) => handleSampleChange(setIndex, sampleIndex, 'strength', e.target.value)} className="w-full p-1 border" />
+                      </td>
+                      <td className="border px-2 py-1">
+                        <input type="number" step="0.01" value={sample.percentDesign} onChange={(e) => handleSampleChange(setIndex, sampleIndex, 'percentDesign', e.target.value)} className="w-full p-1 border" />
+                      </td>
+                      <td className="border px-2 py-1">
+                        <input type="text" value={sample.fractureType} onChange={(e) => handleSampleChange(setIndex, sampleIndex, 'fractureType', e.target.value)} className="w-full p-1 border" />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            <button type="button" onClick={() => addSampleRow(setIndex)} className="text-blue-600 hover:underline text-sm mt-1">
+              + Add Sample
+            </button>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+              {Object.keys(set.additionalInfo).map((field) => (
+                <div key={field}>
+                  <label className="block text-gray-600 text-sm capitalize">{field.replace(/([A-Z])/g, ' $1')}</label>
+                  <input
+                    type="text"
+                    value={set.additionalInfo[field]}
+                    onChange={(e) => handleAdditionalInfoChange(setIndex, field, e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded"
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         ))}
 
-        <label>Webhook URL:<br />
-          <input value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} required />
-        </label><br /><br />
-
-        <button type="submit" disabled={isLoading}>
-          {isLoading ? 'Submitting...' : 'Submit Form'}
-        </button>
+        <div className="pt-4">
+          <button type="submit" className="bg-slate-700 text-white px-6 py-2 rounded hover:bg-slate-800">
+            Submit Report
+          </button>
+        </div>
       </form>
     </div>
   );
