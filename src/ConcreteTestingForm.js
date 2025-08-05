@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import './theme.css'; // optional if you created theme.css
+import './index.css'; // required
 
 const webhookUrl = 'https://hook.us2.make.com/l8daf5wo9l8kul56ux6ljxqn1ek93vl6';
 
@@ -18,9 +20,9 @@ const ConcreteTestingForm = () => {
   const [sets, setSets] = useState([]);
 
   useEffect(() => {
-    const numberOfSets = parseInt(formData.setOf) || 1;
-    const newSets = Array.from({ length: numberOfSets }, (_, setIndex) => ({
-      id: setIndex,
+    const num = parseInt(formData.setOf) || 1;
+    const newSets = Array.from({ length: num }, (_, i) => ({
+      id: i,
       samples: [
         {
           age: '',
@@ -66,7 +68,7 @@ const ConcreteTestingForm = () => {
     setSets(updated);
   };
 
-  const handleAdditionalInfoChange = (setIndex, field, value) => {
+  const handleAdditionalChange = (setIndex, field, value) => {
     const updated = [...sets];
     updated[setIndex].additionalInfo[field] = value;
     setSets(updated);
@@ -93,14 +95,12 @@ const ConcreteTestingForm = () => {
 
   const calculateBreakDate = (castDate, ageDays) => {
     if (!castDate || !ageDays) return '';
-    try {
-      const baseDate = new Date(castDate);
-      const resultDate = new Date(baseDate.getTime());
-      resultDate.setDate(resultDate.getDate() + parseInt(ageDays));
-      return resultDate.toLocaleDateString('en-US');
-    } catch {
-      return '';
-    }
+    const base = new Date(castDate);
+    const days = parseInt(ageDays);
+    if (isNaN(days)) return '';
+    const result = new Date(base);
+    result.setDate(result.getDate() + days);
+    return result.toLocaleDateString('en-US');
   };
 
   const handleSubmit = async (e) => {
@@ -119,19 +119,20 @@ const ConcreteTestingForm = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      alert('Form submitted!');
+      alert('Report submitted!');
     } catch (err) {
       console.error(err);
-      alert('Submission failed.');
+      alert('Submission failed');
     }
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-6 text-sm font-sans text-slate-800">
-      <h1 className="text-2xl font-bold mb-6 text-slate-700 text-center">Compressive Strength Test Report</h1>
+    <div className="max-w-6xl mx-auto p-6 font-sans text-slate-800">
+      <h1 className="text-2xl font-bold mb-6 text-center text-slate-700">Compressive Strength Test Report</h1>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white p-4 border border-gray-200 rounded">
+        {/* General Information */}
+        <section className="form-section grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {[
             ['Client Name', 'client'],
             ['Report Number', 'reportNo'],
@@ -140,68 +141,68 @@ const ConcreteTestingForm = () => {
             ['Location', 'location']
           ].map(([label, key]) => (
             <div key={key}>
-              <label className="block font-medium">{label}</label>
+              <label className="form-label">{label}</label>
               <input
                 type="text"
+                className="form-input"
                 value={formData[key]}
                 onChange={(e) => handleFormChange(key, e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded"
                 required
               />
             </div>
           ))}
           <div>
-            <label className="block font-medium">Cast Date</label>
+            <label className="form-label">Cast Date</label>
             <input
               type="date"
+              className="form-input"
               value={formData.castDate}
               onChange={(e) => handleFormChange('castDate', e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded"
               required
             />
           </div>
           <div>
-            <label className="block font-medium">Number of Sets</label>
+            <label className="form-label">Number of Sets</label>
             <select
+              className="form-input"
               value={formData.setOf}
               onChange={(e) => handleFormChange('setOf', e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded"
               required
             >
-              {[1, 2, 3, 4, 5].map(n => (
-                <option key={n} value={n}>{n}</option>
-              ))}
+              {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
         </section>
 
+        {/* Per Set Sections */}
         {sets.map((set, setIndex) => (
-          <div key={setIndex} className="bg-white border border-gray-300 p-4 rounded space-y-4">
-            <h2 className="text-lg font-semibold text-slate-700">Test Set {setIndex + 1}</h2>
+          <div key={setIndex} className="form-section space-y-4">
+            <h2 className="text-lg font-semibold">Test Set {setIndex + 1}</h2>
 
-            <table className="w-full text-sm border border-gray-300">
-              <thead className="bg-gray-100 text-left">
+            {/* Sample Table */}
+            <table className="w-full border text-sm">
+              <thead className="bg-gray-100">
                 <tr>
-                  {['Sample No.', 'Break Date', 'Age (days)', 'Load (lbs)', 'Area (sq.in.)', 'Strength (psi)', '% Design', 'Fracture Type'].map((label) => (
-                    <th key={label} className="border px-2 py-1">{label}</th>
-                  ))}
+                  {['Sample ID', 'Break Date', 'Age', 'Load (lbs)', 'Area (sq.in.)', 'Strength (psi)', '% Design', 'Fracture Type']
+                    .map(col => (
+                      <th key={col} className="border px-2 py-1 text-left">{col}</th>
+                    ))}
                 </tr>
               </thead>
               <tbody>
-                {set.samples.map((sample, sampleIndex) => {
-                  const sampleId = generateSampleId(formData.client, formData.project, setIndex, sampleIndex);
-                  const breakDate = calculateBreakDate(formData.castDate, sample.age);
+                {set.samples.map((s, i) => {
+                  const sid = generateSampleId(formData.client, formData.project, setIndex, i);
+                  const breakDate = calculateBreakDate(formData.castDate, s.age);
                   return (
-                    <tr key={sampleIndex}>
-                      <td className="border px-2 py-1">{sampleId}</td>
+                    <tr key={i}>
+                      <td className="border px-2 py-1">{sid}</td>
                       <td className="border px-2 py-1">{breakDate}</td>
-                      {['age', 'load', 'area', 'strength', 'percentDesign', 'fractureType'].map((field) => (
+                      {['age', 'load', 'area', 'strength', 'percentDesign', 'fractureType'].map(field => (
                         <td key={field} className="border px-2 py-1">
                           <input
                             type={field === 'fractureType' ? 'text' : 'number'}
-                            step="any"
-                            value={sample[field]}
-                            onChange={(e) => handleSampleChange(setIndex, sampleIndex, field, e.target.value)}
+                            value={s[field]}
+                            onChange={(e) => handleSampleChange(setIndex, i, field, e.target.value)}
                             className="w-full p-1 border border-gray-300 rounded"
                           />
                         </td>
@@ -211,20 +212,20 @@ const ConcreteTestingForm = () => {
                 })}
               </tbody>
             </table>
-
-            <button type="button" onClick={() => addSampleRow(setIndex)} className="text-blue-600 mt-2 hover:underline">
+            <button type="button" onClick={() => addSampleRow(setIndex)} className="text-blue-600 hover:underline mt-1">
               + Add Sample
             </button>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+            {/* Additional Info */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
               {Object.entries(set.additionalInfo).map(([field, value]) => (
                 <div key={field}>
-                  <label className="block text-sm font-medium capitalize">{field.replace(/([A-Z])/g, ' $1')}</label>
+                  <label className="form-label">{field.replace(/([A-Z])/g, ' $1')}</label>
                   <input
                     type="text"
+                    className="form-input"
                     value={value}
-                    onChange={(e) => handleAdditionalInfoChange(setIndex, field, e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded"
+                    onChange={(e) => handleAdditionalChange(setIndex, field, e.target.value)}
                   />
                 </div>
               ))}
@@ -232,7 +233,8 @@ const ConcreteTestingForm = () => {
           </div>
         ))}
 
-        <div className="text-center pt-6">
+        {/* Submit Button */}
+        <div className="text-center">
           <button type="submit" className="bg-slate-700 text-white px-8 py-2 rounded hover:bg-slate-800">
             Submit Report
           </button>
